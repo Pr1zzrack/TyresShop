@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    command: ./scripts/wait-for-postgres.sh db python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - .:/app
+      - backups:/AUTO-TYRES-DATA-DUMPS
+      - media:/var/www/auto-tyres/media
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    depends_on:
+      - db
+      - redis
+
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: TyresDataBase
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: adminadmin
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+
+  celery:
+    build: .
+    command: ./scripts/wait-for-postgres.sh db celery -A config worker -l info
+    volumes:
+      - .:/app
+      - backups:/AUTO-TYRES-DATA-DUMPS
+      - media:/var/www/auto-tyres/media
+    env_file:
+      - .env
+    depends_on:
+      - db
+      - redis
+      - web
+
+  celery-beat:
+    build: .
+    command: ./scripts/wait-for-postgres.sh db celery -A config beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    volumes:
+      - .:/app
+      - backups:/AUTO-TYRES-DATA-DUMPS
+      - media:/var/www/auto-tyres/media
+    env_file:
+      - .env
+    depends_on:
+      - db
+      - redis
+      - web
+
+volumes:
+  postgres_data:
+  backups:
+  media:
